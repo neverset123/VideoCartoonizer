@@ -7,8 +7,6 @@ ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . ./
 
-ENV GOOGLE_APPLICATION_CREDENTIALS "./token.json"
-
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \

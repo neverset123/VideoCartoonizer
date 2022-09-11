@@ -16,24 +16,11 @@ import flask
 from PIL import Image
 import numpy as np
 import skvideo.io
-if opts['colab-mode']:
-    from flask_ngrok import run_with_ngrok #to run the application on colab using ngrok
 
 
 from cartoonize import WB_Cartoonize
 
-if not opts['run_local']:
-    if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
-        from gcloud_utils import upload_blob, generate_signed_url, delete_blob, download_video
-    else:
-        raise Exception("GOOGLE_APPLICATION_CREDENTIALS not set in environment variables")
-    from video_api import api_request
-    # Algorithmia (GPU inference)
-    import Algorithmia
-
 app = Flask(__name__)
-if opts['colab-mode']:
-    run_with_ngrok(app)   #starts ngrok when the app is run
 
 app.config['UPLOAD_FOLDER_VIDEOS'] = 'static/uploaded_videos'
 app.config['CARTOONIZED_FOLDER'] = 'static/cartoonized_images'
@@ -82,14 +69,6 @@ def cartoonize():
                 
                 cartoonized_img_name = os.path.join(app.config['CARTOONIZED_FOLDER'], img_name + ".jpg")
                 cv2.imwrite(cartoonized_img_name, cv2.cvtColor(cartoon_image, cv2.COLOR_RGB2BGR))
-                
-                if not opts["run_local"]:
-                    # Upload to bucket
-                    output_uri = upload_blob("cartoonized_images", cartoonized_img_name, img_name + ".jpg", content_type='image/jpg')
-
-                    # Delete locally stored cartoonized image
-                    os.system("rm " + cartoonized_img_name)
-                    cartoonized_img_name = generate_signed_url(output_uri)
                     
 
                 return render_template("index_cartoonized.html", cartoonized_image=cartoonized_img_name)
@@ -147,12 +126,6 @@ def cartoonize():
 
                 if opts["run_local"]:
                     cartoon_video_path = wb_cartoonizer.process_video(modified_video_path, output_frame_rate)
-                else:
-                    data_uri = upload_blob("processed_videos_cartoonize", modified_video_path, filename, content_type='video/mp4', algo_unique_key='cartoonizeinput')
-                    response = api_request(data_uri)
-                    # Delete the processed video from Cloud storage
-                    delete_blob("processed_videos_cartoonize", filename)
-                    cartoon_video_path = download_video('cartoonized_videos', os.path.basename(response['output_uri']), os.path.join(app.config['UPLOAD_FOLDER_VIDEOS'], filename.split(".")[0] + "_cartoon.mp4"))
                 
                 ## Add audio to the cartoonized video
                 final_cartoon_video_path = os.path.join(app.config['UPLOAD_FOLDER_VIDEOS'], filename.split(".")[0] + "_cartoon_audio.mp4")
@@ -171,8 +144,4 @@ def cartoonize():
         return render_template("index_cartoonized.html")
 
 if __name__ == "__main__":
-    # Commemnt the below line to run the Appication on Google Colab using ngrok
-    if opts['colab-mode']:
-        app.run()
-    else:
-        app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
