@@ -11,7 +11,7 @@ with open('./config.yaml', 'r') as fd:
 sys.path.insert(0, './white_box_cartoonizer/')
 
 import cv2
-from flask import Flask, render_template, make_response, flash
+from flask import Flask, render_template, flash
 import flask
 from PIL import Image
 import numpy as np
@@ -110,11 +110,12 @@ def cartoonize():
                 # Slice, Resize and Convert Video as per settings
                 if opts['trim-video']:
                     #change the variable value to change the time_limit of video (In Seconds)
+                    start_time = opts["trim-start-time"]
                     time_limit = opts['trim-video-length']
                     if opts['original_resolution']:
-                        os.system("ffmpeg -hide_banner -loglevel warning -ss 0 -i '{}' -t {} -filter:v scale=-1:-2 -r {} -c:a copy '{}'".format(os.path.abspath(original_video_path), time_limit, output_frame_rate_number, os.path.abspath(modified_video_path)))
+                        os.system("ffmpeg -hide_banner -loglevel warning -ss {} -i '{}' -t {} -filter:v scale=-1:-2 -r {} -c:a copy '{}'".format(start_time, os.path.abspath(original_video_path), time_limit, output_frame_rate_number, os.path.abspath(modified_video_path)))
                     else:
-                        os.system("ffmpeg -hide_banner -loglevel warning -ss 0 -i '{}' -t {} -filter:v scale={}:-2 -r {} -c:a copy '{}'".format(os.path.abspath(original_video_path), time_limit, width_resize, output_frame_rate_number, os.path.abspath(modified_video_path)))
+                        os.system("ffmpeg -hide_banner -loglevel warning -ss {} -i '{}' -t {} -filter:v scale={}:-2 -r {} -c:a copy '{}'".format(start_time, os.path.abspath(original_video_path), time_limit, width_resize, output_frame_rate_number, os.path.abspath(modified_video_path)))
                 else:
                     if opts['original_resolution']:
                        os.system("ffmpeg -hide_banner -loglevel warning -ss 0 -i '{}' -filter:v scale=-1:-2 -r {} -c:a copy '{}'".format(os.path.abspath(original_video_path), output_frame_rate_number, os.path.abspath(modified_video_path)))
@@ -129,8 +130,10 @@ def cartoonize():
                 
                 ## Add audio to the cartoonized video
                 final_cartoon_video_path = os.path.join(app.config['UPLOAD_FOLDER_VIDEOS'], filename.split(".")[0] + "_cartoon_audio.mp4")
+                concat_cartoon_video_path = os.path.join(app.config['UPLOAD_FOLDER_VIDEOS'], filename.split(".")[0] + "_cartoon_concat.mp4")
                 os.system("ffmpeg -hide_banner -loglevel warning -i '{}' -i '{}' -codec copy -shortest '{}'".format(os.path.abspath(cartoon_video_path), os.path.abspath(audio_file_path), os.path.abspath(final_cartoon_video_path)))
-
+                if opts["concatenate"]:
+                    os.system("ffmpeg -hide_banner -loglevel warning -i '{}' -i '{}' -filter_complex '[0:v]pad=iw*2:ih*1[a];[a][1:v]overlay=w' '{}'".format(os.path.abspath(original_video_path), os.path.abspath(cartoon_video_path), os.path.abspath(concat_cartoon_video_path)))
                 # Delete the videos from local disk
                 os.system("rm {} {} {} {}".format(original_video_path, modified_video_path, audio_file_path, cartoon_video_path))
 
@@ -142,6 +145,9 @@ def cartoonize():
             return render_template("index_cartoonized.html")
     else:
         return render_template("index_cartoonized.html")
+
+    # concatenate videos
+    # ffmpeg -i 1.mp4 -i 1.mp4 -filter_complex "[0:v]pad=iw*2:ih*1[a];[a][1:v]overlay=w" out.mp4
 
 if __name__ == "__main__":
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
